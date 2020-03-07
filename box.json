@@ -1,0 +1,24 @@
+{
+  "check-requirements": true,
+  "chmod": "0755",
+  "directories": [
+    "app",
+    "bootstrap",
+    "config",
+    "database",
+    "vendor",
+    "wp-includes"
+  ],
+  "files": [
+    ".env",
+    "GFSubmit.php",
+    "composer.json"
+  ],
+  "exclude-composer-files": false,
+  "compression": "GZ",
+  "compactors": [
+    "KevinGH\\Box\\Compactor\\Php",
+    "KevinGH\\Box\\Compactor\\Json"
+  ],
+  "main": "nxvc"
+}

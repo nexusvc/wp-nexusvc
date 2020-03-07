@@ -1,0 +1,427 @@
+<?php
+/**
+ *
+ * @package Nexusvc
+ * @version 1.0.7
+ */
+/*
+ * Plugin Name: WP-Nexusvc
+ * Plugin URI: https://nexusvc.org/plugins/wp-nexusvc
+ * Description: Nexusvc Marketing Plugin
+ * Author: Nexusvc
+ * Version: 1.0.7
+ * Author URI: https://nexusvc.org
+ */
+namespace App;
+
+use App\NxvcCore;
+use App\Jobs\PostLead;
+use App\GravityForms\Fields\PhoneField;
+use App\GravityForms\Fields\ZipcodeField;
+use Illuminate\Filesystem\Filesystem;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Str;
+use Illuminate\Translation\FileLoader;
+use Illuminate\Translation\Translator;
+
+class GFSubmit {
+
+    public $persistData = [
+        'gclid',
+        'sigid',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'state',
+        'zip',
+        'zipcode',
+    ];
+
+    public function __construct() {
+        // Enforce Session
+        if(!session_id()) session_start();
+
+        // Import Settings
+        require_once('wp-includes/settings.php');
+        
+        register_activation_hook( __FILE__, array( $this, 'checkForSupervisorConfig' ) );
+        register_activation_hook( __FILE__, array( $this, 'composerUpdateAndMigrate' ) );
+
+        add_action( 'init', [$this, 'persistSessionData'] );
+        add_action( 'init', [$this, 'consoleSymlink'] );
+        add_action( 'admin_init', [$this, 'consoleSymlink'] );
+        add_action( 'admin_init', [$this, 'generateSystemFiles'] );
+        add_filter( 'gform_entry_meta', [$this, 'entryMetaAttributes'], 10, 2);
+        add_action( 'gform_post_submission', [$this, 'enqueueSubmission'], 10, 2 );
+        add_filter( 'gform_entry_detail_meta_boxes', array( $this, 'registerEntryMetabox' ), 10, 3 );
+    }
+
+    public function persistSessionData() {
+        if(!session_id()) session_start();
+
+        foreach($this->persistData as $key) {
+            if(array_key_exists($key, $_REQUEST)) $_SESSION[$key] = $_REQUEST[$key];
+        }
+    }
+
+    public function composerUpdateAndMigrate() {
+        
+        try {
+            $php = shell_exec('which php');
+            $bin = __DIR__ . '/nxvc';
+            shell_exec("{$php} {$bin} migrate");
+        } catch(\Exception $e) {
+            return nexusvcError(
+                __('Can not migrate tables. This may be due to permissions. You must manually run <code>php nxvc migrate</code> from the plugin root directory.', 'nexusvc'),
+                __('Migration Failed', 'nexusvc')
+            );
+        }
+
+        try {
+            $bin = shell_exec('which composer');
+            shell_exec("{$bin} update");
+        } catch(\Exception $e) {
+            return nexusvcError(
+                __('Can not install/update the composer dependencies. You must manually run <code>composer update</code> from the plugin root directory.', 'nexusvc'),
+                __('Composer Update Failed', 'nexusvc')
+            );
+        }
+        
+    }
+
+    public function checkForSupervisorConfig() {
+
+        if(getenv('SKIP_SUPERVISOR') == true) return;
+        
+        NxvcCore::hasSupervisor();
+
+        try {
+            if(!file_exists('/etc/supervisor/conf.d/nxvc.conf')) throw new \Exception('No file found at supervisor.conf path');
+            $conf = fopen('/etc/supervisor/conf.d/nxvc.conf', 'w');
+            if(!$conf) throw new \Exception('No file found at supervisor.conf path');
+
+            $php  = shell_exec(sprintf("which %s", escapeshellarg('php')));
+            $nxvc = __DIR__;
+            $numprocs = 1;
+
+            $contents = "[program:nxvc]\r\nprocess_name=%(program_name)s_%(process_num)02d\r\ncommand={$php} {$nxvc} queue:work --queue=default --daemon\r\nautostart=true\r\nautorestart=true\r\nnumprocs={$numprocs}\r\n";
+
+            fwrite($conf, $contents);
+            fclose($conf);
+        } catch(\Exception $e) {
+            // return nexusvcError(
+            //     __('No write permission on <code>/etc/supervisor/conf.d/</code> to generate <code>nxvc.conf</code> file. You must make the directory writeable by the webserver or manually install the config file.', 'nexusvc'),
+            //     __('Missing configuration', 'nexusvc')
+            // );
+        }
+    }
+
+    public function generateSystemFiles() {
+        global $wpdb;
+
+        if (!file_exists($composer = __DIR__.'/vendor/autoload.php')) {
+            nexusvcError(
+                __('You must run <code>composer install</code> from the <code>nexusvc</code> plugin directory.', 'nexusvc'),
+                __('Autoloader not found.', 'nexusvc')
+            );
+        }
+
+        require_once $composer;
+        
+        // Generate .env file for nxvc
+        $env = fopen(__DIR__.'/.env', 'w') or nexusvcError(
+                __('No write permission on <code>'.__DIR__.'</code> to generate .env file. You must make the directory writeable by the webserver.', 'nexusvc'),
+                __('Permissions Error.', 'nexusvc')
+            );
+
+        $database = DB_NAME;
+        $username = DB_USER;
+        $password = DB_PASSWORD;
+        $dbprefix = $wpdb->base_prefix;
+
+        $contents = "DB_CONNECTION=mysql\r\nDB_DATABASE={$database}\nDB_USERNAME={$username}\nDB_PASSWORD={$password}\nDB_PREFIX={$dbprefix}\n";
+
+        fwrite($env, $contents);
+        fclose($env);
+    }
+
+    public function registerEntryMetabox( $meta_boxes, $entry, $form ) {
+        // Nexusvc Options
+        $options = get_option( 'nexusvc_settings' );
+        $forms   = $options['forms'];
+
+        // Skip if not a registered form
+        if(!in_array($form['id'], $forms)) return;
+        
+        $meta_boxes[ 'additional_meta' ] = array(
+            'title'    => 'Additional Meta',
+            'callback' => array( $this, 'addAdditionalMetaMetabox' ),
+            'context'  => 'normal'
+        );
+
+        $meta_boxes[ 'api_actions' ] = array(
+            'title'    => 'API Actions',
+            'callback' => array( $this, 'addApiActionsMetabox' ),
+            'context'  => 'side'
+        );
+     
+        return $meta_boxes;
+    }
+
+    public function addApiActionsMetabox( $args ) {
+     
+        $form  = $args['form'];
+        $entry = $args['entry'];
+        $action = 'api_actions';
+        
+        ?>
+        <div class="text-center">
+            <button disabled type='button' class="button-primary">Repost Data</button> &nbsp;
+            <button disabled type='button' class="button-secondary">DNC Lead</button>
+        </div>
+        <?php
+    }
+
+    public function addAdditionalMetaMetabox( $args ) {
+     
+        $form  = $args['form'];
+        $entry = $args['entry'];
+     
+        $html   = '';
+        $action = 'additional_meta';
+
+        $fields = [
+            'city',
+            'state',
+            'state_abbreviation',
+            'api_response',
+            'api_status',
+            'lead_id',
+            'sigid',
+            'gclid',
+            'utm_source',
+            'utm_medium',
+            'utm_campaign',
+            'validation_attempts'
+        ];
+
+        asort($fields);
+
+        $html .= '<style>#additional_meta .inside { margin:0px!important; padding:0px!important; }</style>';
+        $html .= '<table cellspacing="0" class="widefat fixed entry-detail-view" style="margin:0px!important; border-top:0px; border-left:0px; border-right:0px; border-bottom:0px;">';
+        $html .= '    <tbody>';
+        foreach($fields as $field) {
+            $html .= '        <tr>';
+            $html .= '            <td colspan="2" class="entry-view-field-name">'.snakeToTitle($field).'</td>';
+            $html .= '        </tr>';
+            $html .= '        <tr>';
+            $html .= '            <td colspan="2" class="entry-view-field-value">'. (rgar( $entry, $field ) != '' ? rgar( $entry, $field ) : '-') .'</td>';
+            $html .= '        </tr>';
+        }
+        $html .= '    </tbody>';
+        $html .= '</table>';
+
+        echo $html;
+    }
+
+    public function envSymlink() {
+        if(!is_link( __DIR__ . '/.env-test')) {
+            symlink( ABSPATH . '/.env', __DIR__ . '/.env-test' );
+        }
+    }
+
+    public function consoleSymlink() {
+        if(!is_link( ABSPATH . '/' . QUEUE_COMMAND )) {
+            symlink( __DIR__ . '/nxvc', ABSPATH . '/' . QUEUE_COMMAND );
+        }
+    }
+
+    public function entryMetaAttributes($entry_meta, $form_id){
+        $entry_meta['city'] = array(
+            'label' => 'City',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['state'] = array(
+            'label' => 'State',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['state_abbreviation'] = array(
+            'label' => 'State Abbreviation',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['api_response'] = array(
+            'label' => 'API Response',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueAPIResponse'],
+            'is_default_column' => true
+        );
+        $entry_meta['api_status'] = array(
+            'label' => 'API Status',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueAPIResponse'],
+            'is_default_column' => true
+        );
+        $entry_meta['lead_id'] = array(
+            'label' => 'Lead ID',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['session_data'] = array(
+            'label' => 'Session Data',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['gclid'] = array(
+            'label' => 'GCLID',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['sigid'] = array(
+            'label' => 'SIGID',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['utm_campaign'] = array(
+            'label' => 'UTM Campaign',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['utm_source'] = array(
+            'label' => 'UTM Source',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['utm_medium'] = array(
+            'label' => 'UTM Medium',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'is_default_column' => true
+        );
+        $entry_meta['validation_attempts'] = array(
+            'label' => 'Validation Attempts',
+            'is_numeric' => true,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueZero'],
+            'is_default_column' => true
+        );
+        return $entry_meta;
+    }
+
+    public function defaultMetaValueZero($key, $lead, $form) {
+        return 0;
+    }
+
+    public function defaultMetaValueLeadID( $key, $lead, $form ){
+        return '';
+    }
+     
+    public function defaultMetaValueAPIResponse( $key, $lead, $form ){
+        return "Pending";
+    }
+
+    public function enqueueSubmission( $lead, $form ) {
+        global $wpdb;
+
+        $trans = [];
+
+        // Nexusvc Options
+        $options = get_option( 'nexusvc_settings' );
+        $forms   = array_key_exists('forms', $options) ? $options['forms'] : [];
+
+        // Skip if not a registered form
+        if(!in_array($form['id'], $forms)) return;
+
+        // Sets default medium for fallback
+        // In case form does not have medium value
+        if(!array_key_exists('medium', $lead)) {
+            $lead['medium'] = $options['medium'];
+        }
+
+        if(isset($_SESSION) && is_array($_SESSION)) {
+            $_SESSION['session_id'] = session_id();
+
+            $lead['session_data'] = base64_encode(json_encode($_SESSION));
+
+            // @todo save medium
+
+            if(array_key_exists('sigid', $_SESSION)) {
+                $lead['sigid'] = $_SESSION['sigid'];
+                gform_update_meta( $lead['id'], 'sigid', $lead['sigid'] );
+            }
+
+            if(array_key_exists('city', $_SESSION)) {
+                $lead['city'] = $_SESSION['city'];
+                gform_update_meta( $lead['id'], 'city', $lead['city'] );
+            }
+
+            if(array_key_exists('state', $_SESSION)) {
+                $lead['state'] = $_SESSION['state'];
+                gform_update_meta( $lead['id'], 'state', $lead['state'] );
+            }
+
+            if(array_key_exists('state_abbreviation', $_SESSION)) {
+                $lead['state_abbreviation'] = $_SESSION['state_abbreviation'];
+                gform_update_meta( $lead['id'], 'state_abbreviation', $lead['state_abbreviation'] );
+            }
+
+            if(array_key_exists('gclid', $_SESSION)) {
+                $lead['gclid'] = $_SESSION['gclid'];
+                gform_update_meta( $lead['id'], 'gclid', $lead['gclid'] );
+            }
+
+            if(array_key_exists('validation_attempts', $_SESSION)) {
+                $lead['validation_attempts'] = "{$_SESSION['validation_attempts']}";
+                gform_update_meta( $lead['id'], 'validation_attempts', $lead['validation_attempts'] );
+            }
+
+            gform_update_meta( $lead['id'], 'session_data', $lead['session_data'] );
+        }
+
+        // Prepare the FileLoader
+        $loader = new FileLoader(new Filesystem(), __DIR__.'/lang');
+
+        // Register the API translator
+        $map = new Translator($loader, "api");
+
+        foreach($lead as $key => $value) {
+            if (is_numeric($key)) {
+                $key = Str::snake(getFormLabel($lead['form_id'], $key));
+            }
+
+            if(!in_array($key, excludedKeys())) {
+                // Attach to translated payload
+                if($key != '') $trans[ $map->get('default.'.$key) ] = $value;
+            }
+        }
+
+        // Prepare the output array payload
+        $output = ['options' => $options, 'lead' => $trans];
+
+        // Encode & Serialize for Command
+        // @todo: Encrypt Payload
+        $transmit = base64_encode(json_encode(serialize($output)));
+        
+        // Execute system console command to create job
+        $job = exec("php nxvc job:create {$transmit}");
+
+        gform_update_meta( $trans['source_id'], 'api_status', 'Queued' );
+
+        if(!session_id()) session_start();
+        $_SESSION['validation_attempts'] = 0;
+    }
+}
+
+new GFSubmit;
+new PhoneField;
+new ZipcodeField;

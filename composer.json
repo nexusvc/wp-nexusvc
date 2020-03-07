@@ -1,0 +1,61 @@
+{
+    "name": "nexusvc/wp-nexusvc",
+    "description": "Nexusvc Wordpress - Queuing and GF Integration",
+    "version": "1.0.7",
+    "keywords": [],
+    "homepage": "https://nexusvc.org",
+    "type": "project",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "John Paul Medina",
+            "email": "jp@leadtrust.io"
+        }
+    ],
+    "require": {
+        "php": "^7.2",
+        "doctrine/dbal": "^2.10",
+        "guzzlehttp/guzzle": "^6.5",
+        "illuminate/bus": "5.8.*",
+        "illuminate/database": "5.8.*",
+        "illuminate/queue": "5.8.*",
+        "illuminate/translation": "5.8.*",
+        "laravel-zero/framework": "5.8.*",
+        "padraic/phar-updater": "^1.0.6",
+        "talevskiigor/composer-bump": "^1.0"
+    },
+    "require-dev": {
+        "fzaninotto/faker": "^1.4",
+        "mockery/mockery": "^1.0",
+        "phpunit/phpunit": "^8.0"
+    },
+    "autoload": {
+        "files": [
+            "./wp-includes/helpers.php"
+        ],
+        "psr-4": {
+            "App\\": "app/",
+            "App\\GravityForms\\": "./wp-includes/GravityForms"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "post-create-project-cmd": [
+            "@php application app:rename"
+        ]
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "bin": [
+        "nxvc"
+    ]
+}
