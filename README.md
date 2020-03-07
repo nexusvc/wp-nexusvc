@@ -13,5 +13,10 @@ Upon activation, the plugin will automatically migrate a set of tables on the da
 - Select which gravity forms to enable post success hooks
 
 ## Requirements
-Requires supervisor service installed or accessible to docker instance for queueing to work
+Requires supervisor service installed or accessible to docker instance for queueing to work.
+- PHP 7.3+
+- Supervisord
+- Gravity Forms
+- Wordpress 5+
+- Composer
 
