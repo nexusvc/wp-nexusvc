@@ -101,7 +101,7 @@ class PostLead {
 
         $client = new \GuzzleHttp\Client;
         try {
-            $request = $client->request('POST', 'https://signal.leadtrust.io/api/post', [
+            $request = $client->request('POST', $this->options['api_url'], [
               'form_params' => $data,
               'headers' => $headers,
             ]);
@@ -110,8 +110,13 @@ class PostLead {
             $response = json_decode($e->getResponse()->getBody(true), true);
         }
 
+        if(!array_key_exists('status', $response)) {
+          $response['status'] = 'error';
+        }
+
         $meta->map(function($attr) use ($response) {
-            if($attr->meta_key == 'api_response') $attr->meta_value = json_encode($response);
+            $json_pretty = json_encode($response, JSON_PRETTY_PRINT);
+            if($attr->meta_key == 'api_response') $attr->meta_value = "<pre>" . $json_pretty . "<pre/>";
             if($attr->meta_key == 'api_status') $attr->meta_value = Str::title($response['status']);
             if($response['status'] == 'success') {
                 if($attr->meta_key == 'lead_id') $attr->meta_value = $response['response']['uid'];

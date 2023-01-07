@@ -86,7 +86,7 @@ class QueueJob implements ShouldQueue
 
             $client = new \GuzzleHttp\Client;
             try {
-                $request = $client->request('POST', 'https://signal.leadtrust.io/api/post', [
+                $request = $client->request('POST', $original['options']['api_url'], [
                   'form_params' => $data,
                   'headers' => $headers,
                 ]);
@@ -118,8 +118,12 @@ class QueueJob implements ShouldQueue
                   //         }
                   //     }
                   // } else {
-                      $attr->meta_value = json_encode($response);
+                      $attr->meta_value = "<pre>".json_encode($response, JSON_PRETTY_PRINT)."</pre>";
                   // }
+              }
+
+              if(!array_key_exists('status', $response)) {
+                $response['status'] = 'error';
               }
 
               if($attr->meta_key == 'api_status') $attr->meta_value = Str::title($response['status']);

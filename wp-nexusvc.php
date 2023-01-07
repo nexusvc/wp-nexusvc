@@ -29,17 +29,18 @@ use App\Models\GfEntryNote;
 
 class GFSubmit {
 
-    public $persistData = [
-        'clkid',
-        'msclkid',
-        'sigid',
-        'utm_source',
-        'utm_medium',
-        'utm_campaign',
-        'state',
-        'zip',
-        'zipcode',
-    ];
+    public static function persisted() {
+        return [
+            'clkid',
+            'gclid',
+            'msclkid',
+            'sigid',
+            'utm_content',
+            'utm_source',
+            'utm_medium',
+            'utm_campaign'
+        ];
+    }
 
     public function __construct() {
         // Enforce Session
@@ -133,16 +134,19 @@ class GFSubmit {
       if($trans['utm_campaign'] == '') unset($trans['utm_campaign']);
       if($trans['utm_medium'] == '') unset($trans['utm_medium']);
       if($trans['utm_source'] == '') unset($trans['utm_source']);
+      if($trans['utm_content'] == '') unset($trans['utm_content']);
 
       // return $entry;
       // Sets default medium for fallback
       // In case form does not have medium value
-      if(!array_key_exists('medium', $trans)) {
-          $trans['medium'] = $options['medium'];
+      if(!array_key_exists('domain', $trans)) {
+          $trans['domain'] = $options['domain'];
       }
 
       // Prepare the output array payload
       $output = ['options' => $options, 'lead' => $trans];
+
+      // die(var_dump($output));
 
       $transmit = base64_encode(json_encode(serialize($output)));
 
@@ -167,7 +171,7 @@ class GFSubmit {
     public function persistSessionData() {
       if(!session_id()) session_start();
 
-      foreach($this->persistData as $key) {
+      foreach(self::persisted() as $key) {
           if(array_key_exists($key, $_REQUEST) && $_REQUEST[$key] != '') $_SESSION[$key] = $_REQUEST[$key];
           if($key == 'msclkid' && array_key_exists($key, $_REQUEST) && $_REQUEST['msclkid'] != '') $_SESSION['clkid'] = $_REQUEST['msclkid'];
       }
@@ -218,10 +222,10 @@ class GFSubmit {
             fwrite($conf, $contents);
             fclose($conf);
         } catch(\Exception $e) {
-            // return nexusvcError(
-            //     __('No write permission on <code>/etc/supervisor/conf.d/</code> to generate <code>nxvc.conf</code> file. You must make the directory writeable by the webserver or manually install the config file.', 'nexusvc'),
-            //     __('Missing configuration', 'nexusvc')
-            // );
+            return nexusvcError(
+                __('No write permission on <code>/etc/supervisor/conf.d/</code> to generate <code>nxvc.conf</code> file. You must make the directory writeable by the webserver or manually install the config file.', 'nexusvc'),
+                __('Missing configuration', 'nexusvc')
+            );
         }
     }
 
@@ -265,7 +269,8 @@ class GFSubmit {
         $meta_boxes[ 'additional_meta' ] = array(
             'title'    => 'Additional Meta',
             'callback' => array( $this, 'addAdditionalMetaMetabox' ),
-            'context'  => 'normal'
+            'context'  => 'normal',
+            'priority' => 'core'
         );
 
         $meta_boxes[ 'api_actions' ] = array(
@@ -284,7 +289,6 @@ class GFSubmit {
         $action = 'api_actions';
 
         ?>
-
         <div class="text-center">
             <a href="/wp-json/wp-nexusvc/api/entry/repost/<?php echo $entry['id']; ?>" class="button-primary">Repost Data</a> &nbsp;
             <button disabled type='button' class="button-secondary">Remove Data</button>
@@ -313,6 +317,7 @@ class GFSubmit {
             'utm_source',
             'utm_medium',
             'utm_campaign',
+            'utm_content',
             'validation_attempts'
         ];
 
@@ -351,19 +356,19 @@ class GFSubmit {
         $entry_meta['city'] = array(
             'label' => 'City',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['state'] = array(
             'label' => 'State',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['state_abbreviation'] = array(
             'label' => 'State Abbreviation',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['api_response'] = array(
@@ -381,49 +386,55 @@ class GFSubmit {
         $entry_meta['lead_id'] = array(
             'label' => 'Lead ID',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['session_data'] = array(
             'label' => 'Session Data',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['clkid'] = array(
             'label' => 'CLKID',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['gclid'] = array(
             'label' => 'GCLID',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['sigid'] = array(
             'label' => 'SIGID',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['utm_campaign'] = array(
             'label' => 'UTM Campaign',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
+            'is_default_column' => true
+        );
+        $entry_meta['utm_content'] = array(
+            'label' => 'UTM Content',
+            'is_numeric' => false,
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['utm_source'] = array(
             'label' => 'UTM Source',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['utm_medium'] = array(
             'label' => 'UTM Medium',
             'is_numeric' => false,
-            'update_entry_meta_callback' => [$this, 'defaultMetaValueLeadID'],
+            'update_entry_meta_callback' => [$this, 'defaultMetaValueString'],
             'is_default_column' => true
         );
         $entry_meta['validation_attempts'] = array(
@@ -439,7 +450,7 @@ class GFSubmit {
         return 0;
     }
 
-    public function defaultMetaValueLeadID( $key, $lead, $form ){
+    public function defaultMetaValueString( $key, $lead, $form ){
         return '';
     }
 
@@ -486,18 +497,43 @@ class GFSubmit {
                 gform_update_meta( $lead['id'], 'state_abbreviation', $lead['state_abbreviation'] );
             }
 
-            if(array_key_exists('gclid', $_SESSION)) {
-                $lead['gclid'] = $_SESSION['gclid'];
-                gform_update_meta( $lead['id'], 'gclid', $lead['gclid'] );
-            }
-
             if(array_key_exists('clkid', $_SESSION)) {
                 $lead['clkid'] = $_SESSION['clkid'];
                 gform_update_meta( $lead['id'], 'clkid', $lead['clkid'] );
             }
 
+            if(array_key_exists('utm_campaign', $_SESSION)) {
+                $lead['utm_campaign'] = $_SESSION['utm_campaign'];
+                gform_update_meta( $lead['id'], 'utm_campaign', $lead['utm_campaign'] );
+            }
+
+            if(array_key_exists('utm_medium', $_SESSION)) {
+                $lead['utm_medium'] = $_SESSION['utm_medium'];
+                gform_update_meta( $lead['id'], 'utm_medium', $lead['utm_medium'] );
+            }
+
+            if(array_key_exists('utm_source', $_SESSION)) {
+                $lead['utm_source'] = $_SESSION['utm_source'];
+                gform_update_meta( $lead['id'], 'utm_source', $lead['utm_source'] );
+            }
+
+            if(array_key_exists('utm_content', $_SESSION)) {
+                $lead['utm_content'] = $_SESSION['utm_content'];
+                gform_update_meta( $lead['id'], 'utm_content', $lead['utm_content'] );
+            }
+
+            if(array_key_exists('gclid', $_SESSION)) {
+                $lead['gclid'] = $_SESSION['gclid'];
+                $lead['clkid'] = $_SESSION['gclid'];
+                gform_update_meta( $lead['id'], 'gclid', $lead['gclid'] );
+                gform_update_meta( $lead['id'], 'clkid', $lead['gclid'] );
+            }
+
             if(array_key_exists('msclkid', $_SESSION)) {
-                $_SESSION['gclid'] = $_SESSION['msclkid'];
+                $lead['msclkid'] = $_SESSION['msclkid'];
+                gform_update_meta( $lead['id'], 'msclkid', $lead['msclkid'] );
+                $lead['clkid'] = $_SESSION['msclkid'];
+                gform_update_meta( $lead['id'], 'clkid', $lead['clkid'] );
                 $lead['gclid'] = $_SESSION['msclkid'];
                 gform_update_meta( $lead['id'], 'gclid', $lead['gclid'] );
             }
@@ -529,8 +565,8 @@ class GFSubmit {
 
         // Sets default medium for fallback
         // In case form does not have medium value
-        if(!array_key_exists('medium', $trans)) {
-            $trans['medium'] = $options['medium'];
+        if(!array_key_exists('domain', $trans)) {
+            $trans['domain'] = $options['domain'];
         }
 
         // Session Entry
@@ -549,16 +585,28 @@ class GFSubmit {
           if($retval === 0) {
             gform_update_meta( $trans['source_id'], 'api_status', $op[0]);
           } else {
-            gform_update_meta( $trans['source_id'], 'api_status', 'PayloadError' );
+            gform_update_meta( $trans['source_id'], 'api_status', 'PayloadError: Failed on job:create, entry was not queued to API.' );
           }
         } catch(\Exception $e) {
           // $result = \GFAPI::add_note( $lead['id'], 0, 'Admin Notification (ID: 5e68b0de6362d)', $e->getMessage() );
-          gform_update_meta( $trans['source_id'], 'api_status', 'PayloadError' );
+          gform_update_meta( $trans['source_id'], 'api_status', 'PayloadError: Failed on job:create, entry was not queued to API.' );
         }
 
         if(!session_id()) session_start();
         $_SESSION['validation_attempts'] = 0;
     }
+}
+
+// Php overwrite for session data
+ini_set('session.save_path','/var/www/html/wp-content/cache');
+ini_set('session.cookie_secure','Off');
+// Force start session if not already started
+if(!session_id()) session_start();
+// Persist data
+foreach(GFSubmit::persisted() as $key) {
+    if(array_key_exists($key, $_REQUEST) && $_REQUEST[$key] != '') $_SESSION[$key] = $_REQUEST[$key];
+    if($key == 'msclkid' && array_key_exists($key, $_REQUEST) && $_REQUEST['msclkid'] != '') $_SESSION['clkid'] = $_REQUEST['msclkid'];
+    if($key == 'gclid' && array_key_exists($key, $_REQUEST) && $_REQUEST['gclid'] != '') $_SESSION['clkid'] = $_REQUEST['gclid'];
 }
 
 new GFSubmit;

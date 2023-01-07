@@ -38,8 +38,8 @@ class Nexusvc_Settings {
     public function adminMenu() {
 
         add_menu_page(
-            esc_html__( 'NexusVC', $this->textDomain ),
-            esc_html__( 'NexusVC', $this->textDomain ),
+            esc_html__( 'LDP API', $this->textDomain ),
+            esc_html__( 'LDP API', $this->textDomain ),
             'manage_options',
             'nexusvc',
             array( $this, 'settingsPageLayout' ),
@@ -72,6 +72,14 @@ class Nexusvc_Settings {
         );
 
         add_settings_field(
+            'api_url',
+            __( 'API Url', $this->textDomain ),
+            array( $this, 'apiUrlField' ),
+            'nexusvc_settings',
+            'nexusvc_settings_section'
+        );
+
+        add_settings_field(
             'username',
             __( 'Username', $this->textDomain ),
             array( $this, 'usernameField' ),
@@ -87,18 +95,18 @@ class Nexusvc_Settings {
             'nexusvc_settings_section'
         );
 
-        add_settings_field(
-            'private_key',
-            __( 'Private Key', $this->textDomain ),
-            array( $this, 'privateKeyField' ),
-            'nexusvc_settings',
-            'nexusvc_settings_section'
-        );
+        // add_settings_field(
+        //     'private_key',
+        //     __( 'Private Key', $this->textDomain ),
+        //     array( $this, 'privateKeyField' ),
+        //     'nexusvc_settings',
+        //     'nexusvc_settings_section'
+        // );
 
         add_settings_field(
-            'medium',
-            __( 'Medium', $this->textDomain ),
-            array( $this, 'mediumField' ),
+            'domain',
+            __( 'Domain', $this->textDomain ),
+            array( $this, 'domainField' ),
             'nexusvc_settings',
             'nexusvc_settings_section'
         );
@@ -176,11 +184,11 @@ class Nexusvc_Settings {
         echo '<p class="description">' . __( 'Select the forms that will be allowed to connect to Nexusvc', $this->textDomain ) . '</p>';
     }
 
-    public function mediumField() {
+    public function domainField() {
         return $this->generateField(
             'text', 
-            'medium', 
-            'Default assigned medium (company). Will apply only if the form does not pass a medium value.'
+            'domain', 
+            'Domain assigned for marketing campaign'
         );
     }
 
@@ -188,6 +196,14 @@ class Nexusvc_Settings {
         return $this->generateField(
             'text', 
             'password'
+        );
+    }
+
+    public function apiUrlField() {
+        return $this->generateField(
+            'text',
+            'api_url', 
+            'Set the API Post URL for your CRM'
         );
     }
 
