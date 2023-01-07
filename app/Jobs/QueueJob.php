@@ -27,6 +27,18 @@ class QueueJob implements ShouldQueue
         $this->payload = $payload;
     }
 
+    public function getTablePrefix($data = []) {
+        if(array_key_exists('blog_id', $data['lead'])) {
+            if($data['lead']['blog_id'] > 1) {
+                return env('DB_PREFIX').$data['lead']['blog_id'].'_';
+            } else {
+                return env('DB_PREFIX');
+            }
+        }
+
+        return env('DB_PREFIX');
+    }
+
     /**
      * Execute the job.
      *
@@ -80,29 +92,12 @@ class QueueJob implements ShouldQueue
 
             // Digest Header Value
             // $headers['Digest'] = 'hmac-sha512=' . base64_encode($digestHash);
-        
+            $mysqlConnection  = config('database.connections.mysql');
+            $mysqlConnection['prefix'] = $this->getTablePrefix($original);
+            \Config::set("database.connections.multisite", $mysqlConnection);
 
-            if(array_key_exists('blog_id', $original['lead'])) {
-                if($original['lead']['blog_id'] > 1) {
-                    $entry = \DB::table($original['lead']['blog_id'].'_gf_entry');
-                } else {
-                    $entry = \DB::table('gf_entry');
-                }
-            }
-            $entry = $entry->where('id', $original['lead']['source_id'])->first();
-            
-            // $fail = new \Exception('Failed: '.json_encode($entry));
-            // return $this->fail($fail);
-
-            if(array_key_exists('blog_id', $original['lead'])) {
-                if($original['lead']['blog_id'] > 1) {
-                    $meta = \DB::table($original['lead']['blog_id'].'_gf_entry_meta');
-                } else {
-                    $meta = \DB::table('gf_entry_meta');
-                }
-            }
-
-            $meta  = $meta->where('entry_id', $original['lead']['source_id'])->whereIn('meta_key', ['api_response', 'lead_id', 'api_status'])->get();
+            $entry = \App\Models\GfEntry::on('multisite')->find($original['lead']['source_id']);
+            $meta  = $entry->meta()->whereIn('meta_key', ['api_response', 'lead_id', 'api_status'])->get();
 
             $client = new \GuzzleHttp\Client;
             try {
@@ -117,75 +112,43 @@ class QueueJob implements ShouldQueue
                 $subType  = 'error';
             }
 
-            // $note = new \App\Models\GfEntryNote;
+            $note = new \App\Models\GfEntryNote;
+            $note = $note->setConnection('multisite');
+            $note->entry_id = $entry->id;
+            $note->user_name = 'NXVC-API';
+            $note->user_id = 0;
+            $note->date_created = date('Y-m-d H:i:s');
+            $note->value = json_encode($response);
+            $note->note_type = "notification";
+            $note->sub_type = $subType;
+            $note->save();
 
-            if(array_key_exists('blog_id', $original['lead'])) {
-                if($original['lead']['blog_id'] > 1) {
-                    $noteTable = env('DB_PREFIX').$original['lead']['blog_id'].'_gf_entry_notes';
-                } else {
-                    $noteTable = env('DB_PREFIX').'gf_entry_notes';
-                }
-            }
-
-            \DB::insert("insert into {$noteTable} (entry_id, user_name, user_id, date_created, value, note_type, sub_type) values (?,?,?,?,?,?,?)", [
-                $entry->id,
-                'NXVC-API',
-                0,
-                date('Y-m-d H:i:s'),
-                json_encode($response),
-                'notification',
-                $subType,
-            ]);
-
-            // $note->entry_id = $entry->id;
-            // $note->user_name = 'NXVC-API';
-            // $note->user_id = 0;
-            // $note->date_created = date('Y-m-d H:i:s');
-            // $note->value = json_encode($response);
-            // $note->note_type = "notification";
-            // $note->sub_type = $subType;
-            // $note->save();
-
-            if(array_key_exists('blog_id', $original['lead'])) {
-                if($original['lead']['blog_id'] > 1) {
-                    $metaTable = env('DB_PREFIX').$original['lead']['blog_id'].'_gf_entry_meta';
-                } else {
-                    $metaTable = env('DB_PREFIX').'gf_entry_meta';
-                }
-            }
-
-            $meta->map(function($attr) use ($response, $metaTable) {
+            $meta->map(function($attr) use ($response) {
               if($attr->meta_key == 'api_response') {
-                    $attr->meta_value = "<pre>".json_encode($response, JSON_PRETTY_PRINT)."</pre>";
-                    \DB::update("update {$metaTable} set meta_value = ? WHERE id = ?", [
-                        $attr->meta_value,
-                        $attr->id
-                    ]);
+                  // if(array_key_exists('errors', $response)) {
+                  //     $attr->meta_value = '';
+                  //     foreach($response['errors'] as $field => $errors) {
+                  //         foreach($errors as $error) {
+                  //             $field = Str::title($field);
+                  //             $attr->meta_value .= "{$field}: {$error}\r\n";
+                  //         }
+                  //     }
+                  // } else {
+                      $attr->meta_value = "<pre>".json_encode($response, JSON_PRETTY_PRINT)."</pre>";
+                  // }
               }
 
               if(!array_key_exists('status', $response)) {
                 $response['status'] = 'error';
               }
 
-              if($attr->meta_key == 'api_status') {
-                $attr->meta_value = Str::title($response['status']);
-                \DB::update("update {$metaTable} set meta_value = ? WHERE id = ?", [
-                    $attr->meta_value,
-                    $attr->id
-                ]);
-              }
+              if($attr->meta_key == 'api_status') $attr->meta_value = Str::title($response['status']);
 
               if($response['status'] == 'success') {
-                  if($attr->meta_key == 'lead_id') {
-                    $attr->meta_value = $response['response']['uid'];
-                    \DB::update("update {$metaTable} set meta_value = ? WHERE id = ?", [
-                        $attr->meta_value,
-                        $attr->id
-                    ]);
-                  }
+                  if($attr->meta_key == 'lead_id') $attr->meta_value = $response['response']['uid'];
               }
 
-              // $attr->save();
+              $attr->save();
             });
 
         } catch(\Exception $e) {

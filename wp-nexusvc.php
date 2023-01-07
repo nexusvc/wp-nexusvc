@@ -14,7 +14,7 @@
  */
 namespace App;
 
-
+require_once('vendor/autoload.php');
 
 use App\NxvcCore;
 use App\Jobs\PostLead;
@@ -26,8 +26,11 @@ use Illuminate\Support\Str;
 use Illuminate\Translation\FileLoader;
 use Illuminate\Translation\Translator;
 use App\Models\GfEntryNote;
+use LaravelZero\Framework\Application;
 
 class GFSubmit {
+
+    public $app;
 
     public static function persisted() {
         return [
@@ -43,6 +46,31 @@ class GFSubmit {
     }
 
     public function __construct() {
+
+        $this->app = new Application(
+            dirname(__DIR__.'/bootstrap')
+        );
+
+        $this->app->singleton(
+            \Illuminate\Contracts\Console\Kernel::class,
+            \LaravelZero\Framework\Kernel::class
+        );
+
+        $this->app->singleton(
+            \Illuminate\Contracts\Debug\ExceptionHandler::class,
+            \Illuminate\Foundation\Exceptions\Handler::class
+        );
+
+        $kernel = $this->app->make(\Illuminate\Contracts\Console\Kernel::class);
+
+        $status = $kernel->handle(
+            $input = new \Symfony\Component\Console\Input\ArgvInput,
+            new \Symfony\Component\Console\Output\ConsoleOutput
+        );
+
+        // $kernel->terminate($input, $status);
+
+        // dd($this->app->getInstance());
         // Enforce Session
         // if(!session_id()) session_start();
 
