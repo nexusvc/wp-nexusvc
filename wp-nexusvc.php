@@ -76,6 +76,7 @@ class GFSubmit {
     public function apiEntryRepost( \WP_REST_Request $request ) {
 
       global $wpdb;
+      global $blog_id;
 
       $entry = \GFAPI::get_entry( (int)$request['id'] );
 
@@ -143,6 +144,8 @@ class GFSubmit {
           $trans['domain'] = $options['domain'];
       }
 
+      $trans['blog_id'] = $blog_id;
+
       // Prepare the output array payload
       $output = ['options' => $options, 'lead' => $trans];
 
@@ -178,7 +181,14 @@ class GFSubmit {
     }
 
     public function composerUpdateAndMigrate() {
+        // activate_blog: fires after a site is actived
+        // deactivate_blog: fires after a site is deactivated
+        // get_blog_id_from_url: Gets the current blog_id based on url
+        // ms_cookie_constants: Defines Multisite cookie constants.
 
+
+        // $is_network_activated = is_plugin_active_for_network( 'wp-nexusvc/wp-nexusvc.php' );
+        // if ( is_multisite() ) { die(json_encode(get_sites())); }
         try {
             $php = shell_exec('which php');
             $bin = __DIR__ . '/nxvc';
@@ -284,13 +294,15 @@ class GFSubmit {
 
     public function addApiActionsMetabox( $args ) {
 
+        global $blog_id;
+
         $form  = $args['form'];
         $entry = $args['entry'];
         $action = 'api_actions';
 
         ?>
         <div class="text-center">
-            <a href="/wp-json/wp-nexusvc/api/entry/repost/<?php echo $entry['id']; ?>" class="button-primary">Repost Data</a> &nbsp;
+            <a href="/wp-json/wp-nexusvc/api/entry/repost/<?php echo $entry['id']; ?>?blog_id=<?php echo $blog_id; ?>" class="button-primary">Repost Data</a> &nbsp;
             <button disabled type='button' class="button-secondary">Remove Data</button>
         </div>
         <?php
@@ -460,6 +472,7 @@ class GFSubmit {
 
     public function enqueueSubmission( $lead, $form ) {
         global $wpdb;
+        global $blog_id;
 
         $trans = [];
 
@@ -568,6 +581,9 @@ class GFSubmit {
         if(!array_key_exists('domain', $trans)) {
             $trans['domain'] = $options['domain'];
         }
+
+        // Set the default site ID
+        $trans['blog_id'] = $blog_id;
 
         // Session Entry
         $_SESSION['entry'] = $trans;
