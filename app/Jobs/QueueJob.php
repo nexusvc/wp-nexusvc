@@ -64,14 +64,19 @@ class QueueJob implements ShouldQueue
 
             $data = $original['lead'];
 
-            // $client   = new \GuzzleHttp\Client;
-            // $response = $client->get("https://api.zippopotam.us/us/{$data['zip']}");
-            // $response = json_decode($response->getBody(true), true);
+            $client   = new \GuzzleHttp\Client;
+            $response = $client->get("https://api.zippopotam.us/us/{$data['zip']}");
+            $response = json_decode($response->getBody(true), true);
 
             // Formatters
-            $data['dob'] = \Carbon\Carbon::parse($data['dob'])->format('m/d/Y');
-            // $data['city'] = $response['places'][0]['place name'];
-            // $data['state'] = $response['places'][0]['state'];
+            if(array_key_exists('dob', $data)) {
+                $data['dob'] = \Carbon\Carbon::parse($data['dob'])->format('m/d/Y');
+            }
+            if(array_key_exists('date_of_birth', $data)) {
+                $data['dob'] = \Carbon\Carbon::parse($data['date_of_birth'])->format('m/d/Y');
+            }
+            $data['city'] = $response['places'][0]['place name'];
+            $data['state'] = $response['places'][0]['state'];
 
             $data['phone'] = normalize_phone_to_E164($data['phone']);
             if(array_key_exists('alt_phone', $data)) $data['alt_phone'] = normalize_phone_to_E164($data['alt_phone']);

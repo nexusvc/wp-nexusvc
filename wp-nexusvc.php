@@ -137,27 +137,37 @@ class GFSubmit {
 
       // Register the API translator
       $map = new Translator($loader, "api");
-
+      $entryJson = json_encode($entry);
+      
       foreach($entry as $key => $value) {
           if(is_numeric($key)) {
-              $key = Str::snake(getFormLabel((int)$entry['form_id'], $key));
+                if($key == "4") {
+                    $key = "dob";
+                } else {
+                    $key = Str::snake(getFormLabel((int)$entry['form_id'], $key));
+                }
+              
           }
 
           if(!in_array($key, excludedKeys())) {
               // Attach to translated payload
-              if($key != '' && !array_key_exists($map->get('default.'.$key), $trans)) $trans[ $map->get('default.'.$key) ] = $value;
+              if($key != '' && !array_key_exists($map->get('default.'.$key), $trans)) {
+                $trans[ $map->get('default.'.$key) ] = $value;
+              } else {
+                $trans[$key] = $value;
+              }
 
               // if($value == 'Male') return $trans;
           }
       }
       // return $trans;
-      // $trans['repost'] = true;
+      $trans['repost'] = true;
 
-      foreach($trans as $key => $value) {
-        if(strpos($key,'default.') !== false) {
-          unset($trans[$key]);
-        }
-      }
+      // foreach($trans as $key => $value) {
+      //   if(strpos($key,'default.') !== false) {
+      //     unset($trans[$key]);
+      //   }
+      // }
 
       if($trans['sigid'] == '') unset($trans['sigid']);
       if($trans['utm_campaign'] == '') unset($trans['utm_campaign']);
@@ -173,6 +183,8 @@ class GFSubmit {
       }
 
       $trans['blog_id'] = $blog_id;
+
+      \Log::debug(json_encode($trans));
 
       // Prepare the output array payload
       $output = ['options' => $options, 'lead' => $trans];
@@ -594,13 +606,23 @@ class GFSubmit {
         $map = new Translator($loader, "api");
 
         foreach($lead as $key => $value) {
-            if (is_numeric($key)) {
-                $key = Str::snake(getFormLabel($lead['form_id'], $key));
+             if(is_numeric($key)) {
+                  if($key == "4") {
+                      $key = "dob";
+                  } else {
+                      $key = Str::snake(getFormLabel((int)$lead['form_id'], $key));
+                  }
+                
             }
 
             if(!in_array($key, excludedKeys())) {
-                // Attach to translated payload
-                if($key != '') $trans[ $map->get('default.'.$key) ] = $value;
+               // Attach to translated payload
+               if($key != '' && !array_key_exists($map->get('default.'.$key), $trans)) {
+                 $trans[ $map->get('default.'.$key) ] = $value;
+               } else {
+                 $trans[$key] = $value;
+               }
+               // if($value == 'Male') return $trans;
             }
         }
 
@@ -642,8 +664,8 @@ class GFSubmit {
 }
 
 // Php overwrite for session data
-ini_set('session.save_path','/var/www/html/wp-content/cache');
-ini_set('session.cookie_secure','Off');
+// ini_set('session.save_path','/var/www/html/wp-content/cache');
+// ini_set('session.cookie_secure','Off');
 // Force start session if not already started
 if(!session_id()) session_start();
 // Persist data
