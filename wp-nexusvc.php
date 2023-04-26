@@ -184,7 +184,7 @@ class GFSubmit {
 
       $trans['blog_id'] = $blog_id;
 
-      \Log::debug(json_encode($trans));
+      // \Log::debug(json_encode($trans));
 
       // Prepare the output array payload
       $output = ['options' => $options, 'lead' => $trans];
