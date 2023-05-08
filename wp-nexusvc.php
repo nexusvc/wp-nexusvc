@@ -175,6 +175,20 @@ class GFSubmit {
       if($trans['utm_source'] == '') unset($trans['utm_source']);
       if($trans['utm_content'] == '') unset($trans['utm_content']);
 
+      if(array_key_exists('electronic_signature', $trans)) {
+          if($trans['electronic_signature']) {
+              // Should have this plugin
+              try {
+                  require_once( __DIR__ . '/../gravityformssignature/class-gf-signature.php' );
+                  $signature_url = gf_signature()->get_signature_url( $trans['electronic_signature'] );
+                  $trans['electronic_signature_url'] = $signature_url;
+              } catch(\Exception $e) {
+                  $trans['electronic_signature_url'] = 'GFSignature::FAILED';
+                  \Log::error("Failed to get gf_signature()->get_signature_url({$trans['electronic_signature']})");
+              }
+          }
+      }
+
       // return $entry;
       // Sets default medium for fallback
       // In case form does not have medium value
@@ -212,7 +226,11 @@ class GFSubmit {
     }
 
     public function persistSessionData() {
-      if(!session_id()) session_start();
+        try{
+            if(!session_id()) session_start();
+        } catch(\Exception $e) {
+
+        }
 
       foreach(self::persisted() as $key) {
           if(array_key_exists($key, $_REQUEST) && $_REQUEST[$key] != '') $_SESSION[$key] = $_REQUEST[$key];
@@ -623,6 +641,20 @@ class GFSubmit {
                  $trans[$key] = $value;
                }
                // if($value == 'Male') return $trans;
+            }
+        }
+
+        if(array_key_exists('electronic_signature', $trans)) {
+            if($trans['electronic_signature']) {
+                // Should have this plugin
+                try {
+                    require_once( __DIR__ . '/../gravityformssignature/class-gf-signature.php' );
+                    $signature_url = gf_signature()->get_signature_url( $trans['electronic_signature'] );
+                    $trans['electronic_signature_url'] = $signature_url;
+                } catch(\Exception $e) {
+                    $trans['electronic_signature_url'] = 'GFSignature::FAILED';
+                    \Log::error("Failed to get gf_signature()->get_signature_url({$trans['electronic_signature']})");
+                }
             }
         }
 
