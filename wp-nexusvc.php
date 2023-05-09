@@ -18,6 +18,10 @@ require_once('vendor/autoload.php');
 
 use App\NxvcCore;
 use App\Jobs\PostLead;
+use App\GravityForms\Fields\EmailOptInField;
+use App\GravityForms\Fields\PhoneOptInField;
+use App\GravityForms\Fields\EmailCodeField;
+use App\GravityForms\Fields\PhoneCodeField;
 use App\GravityForms\Fields\PhoneField;
 use App\GravityForms\Fields\ZipcodeField;
 use Illuminate\Filesystem\Filesystem;
@@ -138,10 +142,12 @@ class GFSubmit {
       // Register the API translator
       $map = new Translator($loader, "api");
       $entryJson = json_encode($entry);
+      $formId = $entry['form_id'];
       
       foreach($entry as $key => $value) {
           if(is_numeric($key)) {
-                if($key == "4") {
+
+                if(($key == "4" && $formId == "3") || ($key == "10" && $formId == "11")) {
                     $key = "dob";
                 } else {
                     $key = Str::snake(getFormLabel((int)$entry['form_id'], $key));
@@ -538,6 +544,8 @@ class GFSubmit {
         $options = get_option( 'nexusvc_settings' );
         $forms   = array_key_exists('forms', $options) ? $options['forms'] : [];
 
+        $formId = $form['id'];
+
         // Skip if not a registered form
         if(!in_array($form['id'], $forms)) return;
 
@@ -625,7 +633,7 @@ class GFSubmit {
 
         foreach($lead as $key => $value) {
              if(is_numeric($key)) {
-                  if($key == "4") {
+                  if(($key == "4" && $formId == "3") || ($key == "10" && $formId == "11")) {
                       $key = "dob";
                   } else {
                       $key = Str::snake(getFormLabel((int)$lead['form_id'], $key));
@@ -710,3 +718,7 @@ foreach(GFSubmit::persisted() as $key) {
 new GFSubmit;
 new PhoneField;
 new ZipcodeField;
+new EmailOptInField;
+new EmailCodeField;
+new PhoneOptInField;
+new PhoneCodeField;

@@ -91,5 +91,9 @@ return [
     "i_n_d_e_m_n_i_f_i_c_a_t_i_o_n_a_g_r_e_e_m_e_n_t" => "indemnification_agreement_title",
     "e_l_e_c_t_r_o_n_i_c_s_i_g_n_a_t_u_r_e_c_o_n_s_e_n_t" => "electronic_signature_agreement_title",
     "d_a_t_a_p_r_o_t_e_c_t_i_o_n_s_t_o_r_a_g_e_a_n_d_u_s_a_g_e_a_g_r_e_e_m_e_n_t" => "data_protection_agreement_title",
-    "a_u_t_h_o_r_i_z_a_t_i_o_n_f_o_r_r_e_l_e_a_s_e_a_n_d_d_i_s_c_l_o_s_u_r_e_o_f_h_e_a_l_t_h_i_n_f_o_r_m_a_t_i_o_n_p_u_r_s_u_a_n_t_t_o_h_i_p_a_a" => "hippa_release_agreement_title"
+    "a_u_t_h_o_r_i_z_a_t_i_o_n_f_o_r_r_e_l_e_a_s_e_a_n_d_d_i_s_c_l_o_s_u_r_e_o_f_h_e_a_l_t_h_i_n_f_o_r_m_a_t_i_o_n_p_u_r_s_u_a_n_t_t_o_h_i_p_a_a" => "hippa_release_agreement_title",
+    "i_have_read_and_agree_to_all_terms_and_conditions" => "terms_and_conditions",
+    "middle_name" => "middle_name",
+    "phone6-_digit_verification_code" => "phone_verification_code",
+    "email6-_digit_verification_code" => "email_verification_code"
 ];
