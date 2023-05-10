@@ -2,14 +2,14 @@
 /**
  *
  * @package Nexusvc
- * @version 2.0.0
+ * @version 3.0.0
  */
 /*
  * Plugin Name: WP-Nexusvc
  * Plugin URI: https://nexusvc.org/plugins/wp-nexusvc
  * Description: Nexusvc Marketing Plugin
  * Author: Nexusvc
- * Version: 2.0.0
+ * Version: 3.0.0
  * Author URI: https://nexusvc.org
  */
 namespace App;
@@ -96,6 +96,42 @@ class GFSubmit {
         add_filter( 'gform_entry_detail_meta_boxes', array( $this, 'registerEntryMetabox' ), 10, 3 );
 
         add_action( 'rest_api_init', [$this, 'addRestEndpoints'] );
+
+        add_option( 'nexusvc_db_version', '1.0.0' );
+
+        add_action( 'plugins_loaded', [$this, 'installOptInTokensTable'] );
+    }
+
+    public function installOptInTokensTable() {
+        global $wpdb;
+        global $nexusvc_db_version;
+
+        $nexusvc_db_version = "3.0.0";
+
+        $installed_ver = get_option( "nexusvc_db_version" );
+
+        if($installed_ver == '1.0.0') {
+            $table_name = $wpdb->prefix . 'optin_tokens';
+            
+            $charset_collate = $wpdb->get_charset_collate();
+
+            $sql = "CREATE TABLE $table_name (
+                id mediumint(9) NOT NULL AUTO_INCREMENT,
+                hash varchar(191) NOT NULL,
+                token varchar(12) NOT NULL,
+                used tinyint(1) DEFAULT 0 NOT NULL,
+                created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                expires_at datetime DEFAULT DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 2 MINUTE) NOT NULL,
+                updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+                PRIMARY KEY  (id)
+            ) $charset_collate;";
+
+            require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+            dbDelta( $sql );
+
+            update_option( 'nexusvc_db_version', $nexusvc_db_version );
+        }
     }
 
     public function addRestEndpoints() {

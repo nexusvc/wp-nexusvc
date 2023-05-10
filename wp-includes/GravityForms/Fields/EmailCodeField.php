@@ -27,14 +27,17 @@ class EmailCodeField extends \GF_Field_Text {
     }
 
     public function validate( $value, $form ) {
-        $originalValue = json_encode($value);
+        $originalValue = json_encode( $value );
         $value = is_array( $value ) ? rgar( $value, 0 ) : $value; // Form objects created in 1.8 will supply a string as the value.
         $is_blank = rgblank( $value ) || ( is_array( $value ) && rgempty( array_filter( $value ) ) );
 
         if($is_blank) {
+        
             $this->failed_validation  = true;
             $this->validation_message = "Please enter the 6 digit code that was sent to the email address you provided.";
+        
         } else {
+
             $email = false;
 
             foreach($form['fields'] as $field) {
@@ -50,11 +53,11 @@ class EmailCodeField extends \GF_Field_Text {
                 $this->validation_message = "Unable to find the Email Opt-In.";
             }
 
-            $encrypt = base64_encode(WpPluginEncryption::encryptPayload( $email ));
-            $decrypt = WpPluginEncryption::decryptPayload( base64_decode($encrypt) );
+            $encrypt = base64_encode( WpPluginEncryption::encryptPayload( $email ) );
+            $decrypt = WpPluginEncryption::decryptPayload( base64_decode( $encrypt ) );
             $code = WpPluginEncryption::generateCode( $decrypt );
 
-            if(strtoupper($code) != strtoupper($value)) {
+            if(strtoupper($code) != strtoupper( $value )) {
                 $this->failed_validation  = true;
                 $this->validation_message = "Invalid two-factor verification code. Please check your email and try again.";
             }
