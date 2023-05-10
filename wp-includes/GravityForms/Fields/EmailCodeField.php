@@ -12,7 +12,7 @@ if ( ! class_exists( 'GFForms' ) ) {
 
 use \Carbon\Carbon;
 use \GuzzleHttp\Client;
-use App\Traits\WpPluginEncryption;
+use App\WpPluginEncryption;
 
 class EmailCodeField extends \GF_Field_Text {
 
@@ -23,10 +23,11 @@ class EmailCodeField extends \GF_Field_Text {
     }
 
     public function get_form_editor_field_description() {
-        return esc_attr__( 'Will validate 6 digit token against email adress. Should only be included after the Email Opt-In Field has been validated. (Multi Step Form)', 'gravityforms' );
+        return esc_attr__( 'Will validate token against email adress. Should only be included after the Email Opt-In Field has been validated. (Multi Step Form)', 'gravityforms' );
     }
 
     public function validate( $value, $form ) {
+
         $originalValue = json_encode( $value );
         $value = is_array( $value ) ? rgar( $value, 0 ) : $value; // Form objects created in 1.8 will supply a string as the value.
         $is_blank = rgblank( $value ) || ( is_array( $value ) && rgempty( array_filter( $value ) ) );
@@ -34,7 +35,7 @@ class EmailCodeField extends \GF_Field_Text {
         if($is_blank) {
         
             $this->failed_validation  = true;
-            $this->validation_message = "Please enter the 6 digit code that was sent to the email address you provided.";
+            $this->validation_message = "Please enter the code that was sent to the email address you provided.";
         
         } else {
 
@@ -53,13 +54,15 @@ class EmailCodeField extends \GF_Field_Text {
                 $this->validation_message = "Unable to find the Email Opt-In.";
             }
 
-            $encrypt = base64_encode( WpPluginEncryption::encryptPayload( $email ) );
-            $decrypt = WpPluginEncryption::decryptPayload( base64_decode( $encrypt ) );
-            $code = WpPluginEncryption::generateCode( $decrypt );
+            if(WpPluginEncryption::alreadyValidated($value, $email)) {
+                $this->failed_validation = false;
+                return;
+            }
 
-            if(strtoupper($code) != strtoupper( $value )) {
-                $this->failed_validation  = true;
-                $this->validation_message = "Invalid two-factor verification code. Please check your email and try again.";
+            $this->failed_validation = WpPluginEncryption::validate($value, $email);
+
+            if($this->failed_validation) {
+                $this->validation_message = "Invalid token provided or the token is expired. Please check the token and try again.";
             }
         }
 

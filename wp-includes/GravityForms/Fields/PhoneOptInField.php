@@ -12,7 +12,7 @@ if ( ! class_exists( 'GFForms' ) ) {
 
 use \Carbon\Carbon;
 use \GuzzleHttp\Client;
-use App\Traits\WpPluginEncryption;
+use App\WpPluginEncryption;
 
 class PhoneOptInField extends \GF_Field_Phone {
 
@@ -27,6 +27,21 @@ class PhoneOptInField extends \GF_Field_Phone {
     }
 
     public function validate( $value, $form ) {
+        foreach($form['fields'] as $field) {
+            if($field['type'] == 'phone_code') {
+                $input = "input_{$field['id']}";
+                $codeValue = $this->get_input_value_submission( $input );
+                $codeValue = is_array( $codeValue ) ? rgar( $codeValue, 0 ) : $codeValue; // Form objects created in 1.8 will supply a string as the value.
+
+                if($codeValue) {
+                    if(WpPluginEncryption::alreadyValidated($codeValue, $value)) {
+                        $this->failed_validation = false;
+                        return;
+                    }
+                }
+            }
+        }
+
         $phone_format = $this->get_phone_format();
 
         if ( rgar( $phone_format, 'regex' ) && $value !== '' && $value !== 0 && ! preg_match( $phone_format['regex'], $value ) ) {
@@ -40,7 +55,6 @@ class PhoneOptInField extends \GF_Field_Phone {
         if(!$this->failed_validation) {
             // Sms must validate above actions first. If it fails then this will not run.
             WpPluginEncryption::sendSmsVerification($value);
-
         }
 
     }

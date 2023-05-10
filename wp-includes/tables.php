@@ -45,7 +45,7 @@ class SystemStatusTable extends \WP_List_Table {
 
         $this->items = [];
 
-        foreach (['Php','Python3','Supervisord','Composer','Gravity Forms'] as $service) {
+        foreach (['Php','Python3','Supervisord','Composer','Gravity Forms', 'Nexusvc DB'] as $service) {
             $this->items[] = [
                 'service_name' => $service,
                 'is_supported' => (!\App\NxvcCore::version(strtolower($service)) ? '<span style="color:red;text-align: center;">&#10007</span>' : '<span style="color:green;text-align: center;">&#10003</span>'),

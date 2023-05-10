@@ -50,27 +50,31 @@ class GFSubmit {
     }
 
     public function __construct() {
+        global $nxvcApp;
 
-        $this->app = new Application(
-            dirname(__DIR__.'/bootstrap')
-        );
+        if(!$nxvcApp) {
+            $this->app = new Application(
+                dirname(__DIR__.'/bootstrap')
+            );
 
-        $this->app->singleton(
-            \Illuminate\Contracts\Console\Kernel::class,
-            \LaravelZero\Framework\Kernel::class
-        );
+            $this->app->singleton(
+                \Illuminate\Contracts\Console\Kernel::class,
+                \LaravelZero\Framework\Kernel::class
+            );
 
-        $this->app->singleton(
-            \Illuminate\Contracts\Debug\ExceptionHandler::class,
-            \Illuminate\Foundation\Exceptions\Handler::class
-        );
+            $this->app->singleton(
+                \Illuminate\Contracts\Debug\ExceptionHandler::class,
+                \Illuminate\Foundation\Exceptions\Handler::class
+            );
 
-        $kernel = $this->app->make(\Illuminate\Contracts\Console\Kernel::class);
+            $kernel = $this->app->make(\Illuminate\Contracts\Console\Kernel::class);
 
-        $status = $kernel->handle(
-            $input = new \Symfony\Component\Console\Input\ArgvInput,
-            new \Symfony\Component\Console\Output\ConsoleOutput
-        );
+            // $status = $kernel->handle(
+            //     $input = new \Symfony\Component\Console\Input\ArgvInput,
+            //     new \Symfony\Component\Console\Output\ConsoleOutput
+            // );
+            $nxvcApp = $this->app;
+        }
 
         // $kernel->terminate($input, $status);
 
@@ -100,37 +104,64 @@ class GFSubmit {
         add_option( 'nexusvc_db_version', '1.0.0' );
 
         add_action( 'plugins_loaded', [$this, 'installOptInTokensTable'] );
+
+        add_filter( 'gform_validation', [$this, 'preValidation'] );
+    }
+
+    public function preValidation( $validation_result ) {
+        $form = $validation_result['form'];
+        
+        // die(json_encode($validation_result));
+      
+        //Assign modified $form object back to the validation result
+        $validation_result['form'] = $form;
+
+        return $validation_result;
     }
 
     public function installOptInTokensTable() {
         global $wpdb;
         global $nexusvc_db_version;
 
-        $nexusvc_db_version = "3.0.0";
+        $nexusvc_db_version = "1.0.4";
 
         $installed_ver = get_option( "nexusvc_db_version" );
 
-        if($installed_ver == '1.0.0') {
-            $table_name = $wpdb->prefix . 'optin_tokens';
+        if($installed_ver != $nexusvc_db_version) {
+            $table     = 'optin_tokens';
+
+            $table_name = $wpdb->prefix . $table;
             
             $charset_collate = $wpdb->get_charset_collate();
 
-            $sql = "CREATE TABLE $table_name (
-                id mediumint(9) NOT NULL AUTO_INCREMENT,
-                hash varchar(191) NOT NULL,
-                token varchar(12) NOT NULL,
-                used tinyint(1) DEFAULT 0 NOT NULL,
-                created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
-                expires_at datetime DEFAULT DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 2 MINUTE) NOT NULL,
-                updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
-                PRIMARY KEY  (id)
-            ) $charset_collate;";
+            // $filename = __DIR__ . "/database/wpdb/{$table}-{$nexusvc_db_version}.sql";
+
+            // die('$filename');
 
             require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
-            dbDelta( $sql );
+            $file = __DIR__ . "/database/wpdb/{$table}-{$nexusvc_db_version}.sql.php";
 
-            update_option( 'nexusvc_db_version', $nexusvc_db_version );
+            if (!file_exists($file)) {
+                return nexusvcError(
+                    __("Unable to locate the SQL file for the DB version supplied: {$file}", 'nexusvc'),
+                    __("Database Upgrade Failed: {$nexusvc_db_version}", 'nexusvc')
+                );
+            }
+            
+            require_once $file;
+            
+            if(!$sql) {
+                return nexusvcError(
+                    __("Invalid format of SQL: {$file}", 'nexusvc'),
+                    __("Database Upgrade Failed: {$nexusvc_db_version}", 'nexusvc')
+                );
+            }
+
+            if($sql) {
+                dbDelta( $sql );
+                update_option( 'nexusvc_db_version', $nexusvc_db_version );
+            }
         }
     }
 
@@ -571,6 +602,7 @@ class GFSubmit {
     }
 
     public function enqueueSubmission( $lead, $form ) {
+
         global $wpdb;
         global $blog_id;
 

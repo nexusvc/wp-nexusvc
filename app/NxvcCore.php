@@ -5,8 +5,10 @@ namespace App;
 class NxvcCore {
 
     public static function has($cmd, $error = true) {
-        
         switch($cmd) {
+            case 'nexusvc db':
+                return (get_option( "nexusvc_db_version" ) ? 'Installed' : 'Not Installed');
+                break;
             case 'gravity forms':
                 if(class_exists('GFForms') && \GFForms::$version && \is_plugin_active('gravityforms/gravityforms.php')) {
                     return 'Installed';
@@ -38,6 +40,9 @@ class NxvcCore {
 
     public static function version($cmd) {
         switch($cmd) {
+            case 'nexusvc db':
+                return get_option( "nexusvc_db_version" );
+                break;
             case 'gravity forms':
                 if(class_exists('GFForms')) return \GFForms::$version;
                 break;

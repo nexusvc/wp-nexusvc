@@ -12,7 +12,7 @@ if ( ! class_exists( 'GFForms' ) ) {
 
 use \Carbon\Carbon;
 use \GuzzleHttp\Client;
-use App\Traits\WpPluginEncryption;
+use App\WpPluginEncryption;
 
 class EmailOptInField extends \GF_Field_Email {
 
@@ -27,6 +27,22 @@ class EmailOptInField extends \GF_Field_Email {
     }
 
     public function validate( $value, $form ) {
+        foreach($form['fields'] as $field) {
+            if($field['type'] == 'email_code') {
+                $input = "input_{$field['id']}";
+                $codeValue = $this->get_input_value_submission( $input );
+                $codeValue = is_array( $codeValue ) ? rgar( $codeValue, 0 ) : $codeValue; // Form objects created in 1.8 will supply a string as the value.
+
+                if($codeValue) {
+                    if(WpPluginEncryption::alreadyValidated($codeValue, $value)) {
+                        $this->failed_validation = false;
+                        return;
+                    }
+                }
+            }
+        }
+
+
         $email = is_array( $value ) ? rgar( $value, 0 ) : $value; // Form objects created in 1.8 will supply a string as the value.
         $is_blank = rgblank( $value ) || ( is_array( $value ) && rgempty( array_filter( $value ) ) );
 
@@ -44,8 +60,7 @@ class EmailOptInField extends \GF_Field_Email {
         // Lets make sure field is already valid
         if(!$this->failed_validation) {
             // Email must validate above actions first. If it fails then this will not run.
-            WpPluginEncryption::sendEmailVerification($email);
-
+            $data = WpPluginEncryption::sendEmailVerification($email);
         }
 
     }

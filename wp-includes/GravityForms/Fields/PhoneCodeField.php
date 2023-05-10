@@ -12,7 +12,7 @@ if ( ! class_exists( 'GFForms' ) ) {
 
 use \Carbon\Carbon;
 use \GuzzleHttp\Client;
-use App\Traits\WpPluginEncryption;
+use App\WpPluginEncryption;
 
 class PhoneCodeField extends \GF_Field_Text {
 
@@ -45,18 +45,15 @@ class PhoneCodeField extends \GF_Field_Text {
                 }
             }
 
-            if(!$phone) {
-                $this->failed_validation  = true;
-                $this->validation_message = "Unable to find the Phone Opt-In.";
+            if(WpPluginEncryption::alreadyValidated($value, $phone)) {
+                $this->failed_validation = false;
+                return;
             }
 
-            $encrypt = base64_encode(WpPluginEncryption::encryptPayload( $phone ));
-            $decrypt = WpPluginEncryption::decryptPayload( base64_decode($encrypt) );
-            $code = WpPluginEncryption::generateCode( $decrypt );
+            $this->failed_validation = WpPluginEncryption::validate($value, $phone);
 
-            if(strtoupper($code) != strtoupper($value)) {
-                $this->failed_validation  = true;
-                $this->validation_message = "Invalid two-factor verification code. Please check your sms phone and try again.";
+            if($this->failed_validation) {
+                $this->validation_message = "Invalid token provided or the token is expired. Please check the token and try again.";
             }
         }
 
